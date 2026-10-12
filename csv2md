@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""csv2md - CSV to Markdown table. Python stdlib only, no deps."""
+import argparse
+import csv
+import sys
+
+
+def escape(cell):
+    """Make one CSV cell safe inside a Markdown table cell."""
+    # TODO(human)
+
+
+def to_md(rows):
+    if not rows:
+        return ""
+    width = max(len(r) for r in rows)
+    cells = [[escape(c) for c in r] + [""] * (width - len(r)) for r in rows]
+    w = [max(len(r[i]) for r in cells) for i in range(width)]
+    pad = lambda r: "| " + " | ".join(c.ljust(w[i]) for i, c in enumerate(r)) + " |"
+    return "\n".join(
+        [pad(cells[0]), "| " + " | ".join("-" * max(w[i], 3) for i in range(width)) + " |"]
+        + [pad(r) for r in cells[1:]]
+    )
+
+
+def main():
+    p = argparse.ArgumentParser(description="Convert CSV to a Markdown table.")
+    p.add_argument("infile", nargs="?", default="-", help="CSV file (default: stdin)")
+    p.add_argument("-o", "--output", help="output file (default: stdout)")
+    p.add_argument("-d", "--delimiter", help="field delimiter (default: auto-detect)")
+    a = p.parse_args()
+
+    try:
+        text = (
+            sys.stdin.read()
+            if a.infile == "-"
+            else open(a.infile, encoding="utf-8-sig").read()
+        )
+    except OSError as e:
+        sys.exit(f"csv2md: {e}")
+
+    delim = a.delimiter
+    if not delim:
+        try:
+            delim = csv.Sniffer().sniff(text[:8192], delimiters=",;\t|").delimiter
+        except csv.Error:
+            delim = ","
+
+    md = to_md(list(csv.reader(text.splitlines(keepends=True), delimiter=delim))) + "\n"
+
+    if a.output:
+        try:
+            open(a.output, "w", encoding="utf-8").write(md)
+        except OSError as e:
+            sys.exit(f"csv2md: {e}")
+    else:
+        sys.stdout.write(md)
+
+
+if __name__ == "__main__":
+    main()
